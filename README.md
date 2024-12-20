@@ -1,21 +1,25 @@
-# 书签管理器标题获取微服务
+# TitleService 网页标题服务
 
-## 最近更新
-### 智能信息提取功能
-- 引入基于智谱AI的智能摘要生成
-- 自动提取网页标签和关键词
-- 新增网站截图获取功能
-- 优化网页信息解析算法
-- 增强错误处理和日志记录机制
+## 功能描述
+TitleService 是一个基于 Flask 的微服务，用于从给定的 URL 提取网页标题、生成标签和关键词。
 
-## 依赖安装
-```bash
-pip install -r requirements.txt
-```
+## 主要特性
+- 从网页中提取标题
+- 使用 ZhipuAI 智能生成标签和关键词
+- 处理网页内容获取的异常情况
+- 支持代理配置和网络错误处理
 
-## 配置
-1. 设置环境变量 `ZHIPUAI_API_KEY`
-2. 设置环境变量 `APIFLASH_API_KEY`
+## 依赖环境
+- Python 3.8+
+- Flask
+- requests
+- BeautifulSoup4
+- zhipuai
+
+## 安装步骤
+1. 克隆仓库
+2. 安装依赖：`pip install -r requirements.txt`
+3. 设置 ZHIPUAI_API_KEY 环境变量
 
 ## 运行服务
 ```bash
@@ -24,8 +28,9 @@ python app.py
 
 服务将在 `http://localhost:5000` 运行，提供 `/get_title` 接口。
 
-## 接口使用
-GET `/get_title?url=https://example.com`
+## API 接口
+- GET `/get_title?url=<网页地址>`
+  返回网页的标题、标签、关键词等信息
 
 返回示例：
 ```json
@@ -39,25 +44,10 @@ GET `/get_title?url=https://example.com`
 }
 ```
 
-## 功能详情
-
-### 智能摘要生成
-- 使用AI技术从网页内容中提取核心信息
-- 支持自定义摘要长度（默认300字符）
-- 处理各种网页内容的边界情况
-- 保证摘要简洁、准确
-
-### 自动标签和关键词提取
-- 智能分析网页内容
-- 最多生成5个相关标签
-- 最多生成5个核心关键词
-- 支持不同类型网站的个性化提取
-
-### 网站截图功能
-- 使用 ApiFlash API 获取网站缩略图
-- 支持自定义截图尺寸
-- 去除广告和cookie横幅
-- 兼容各种网站结构
+## 最近更新
+- 优化标签和关键词生成逻辑
+- 改进网络请求和代理处理
+- 增加错误处理机制
 
 ## 技术栈
 - Flask Web框架
@@ -67,7 +57,7 @@ GET `/get_title?url=https://example.com`
 - Requests网络请求库
 
 ## 注意事项
-- 配置 ZHIPUAI_API_KEY 和 APIFLASH_API_KEY 环境变量
+- 配置 ZHIPUAI_API_KEY 环境变量
 - 建议使用最新版本依赖
 - 生产环境控制API调用频率
 - 网页内容解析依赖网站结构稳定性

@@ -33,7 +33,7 @@ def generate_tags_and_keywords(text):
             messages=[
                 {
                     "role": "user", 
-                    "content": f"请为以下文本生成5个最相关的标签和5个最相关的关键词。文本内容：{text}。请以以下格式返回：\n标签：标签1、标签2、标签3、标签4、标签5\n关键词：关键词1、关键词2、关键词3、关键词4、关键词5"
+                    "content": f"请为以下文本生成3个最相关的标签和5个最相关的关键词。文本内容：{text}。请以以下格式返回：\n标签：标签1、标签2、标签3\n关键词：关键词1、关键词2、关键词3、关键词4、关键词5"
                 }
             ],
             top_p=0.7,
@@ -50,16 +50,24 @@ def generate_tags_and_keywords(text):
         tags = []
         keywords = []
         
-        for line in result_text.split('\n'):
-            line = line.strip()
-            if line.startswith('标签：'):
-                tags = [tag.strip() for tag in line.replace('标签：', '').split('、') if tag.strip()]
-            elif line.startswith('关键词：'):
-                keywords = [keyword.strip() for keyword in line.replace('关键词：', '').split('、') if keyword.strip()]
+        # 尝试多种解析方式
+        try:
+            # 方法1：严格按照格式解析
+            for line in result_text.split('\n'):
+                line = line.strip()
+                if line.startswith('标签：'):
+                    tags = [tag.strip() for tag in line.replace('标签：', '').split('、') if tag.strip()]
+                elif line.startswith('关键词：'):
+                    keywords = [keyword.strip() for keyword in line.replace('关键词：', '').split('、') if keyword.strip()]
+            
+            # 如果第一种方法失败，尝试更灵活的方法
+            if not tags or not keywords:
+                raise ValueError("解析失败，尝试备用方法")
         
-        # 如果解析失败，尝试更灵活的方法
-        if not tags or not keywords:
-            # 尝试从整个文本中提取
+        except Exception as parsing_error:
+            logging.warning(f"严格解析失败：{parsing_error}，尝试备用解析方法")
+            
+            # 方法2：更灵活的解析
             parts = result_text.split('\n')
             for part in parts:
                 if '标签' in part and not tags:
@@ -67,9 +75,15 @@ def generate_tags_and_keywords(text):
                 if '关键词' in part and not keywords:
                     keywords = [keyword.strip() for keyword in part.split('：')[-1].split('、') if keyword.strip()]
         
-        # 限制数量为5个
-        tags = tags[:5]
+        # 限制数量为3个标签和5个关键词
+        tags = tags[:3]
         keywords = keywords[:5]
+        
+        # 如果仍然为空，返回默认值
+        if not tags:
+            tags = ['未知标签1', '未知标签2', '未知标签3']
+        if not keywords:
+            keywords = ['未知关键词1', '未知关键词2', '未知关键词3', '未知关键词4', '未知关键词5']
         
         logging.info("最终标签: %s", tags)
         logging.info("最终关键词: %s", keywords)
@@ -78,7 +92,7 @@ def generate_tags_and_keywords(text):
     
     except Exception as e:
         logging.error("AI生成标签和关键词时出错: %s", e)
-        return [], []
+        return ['未知标签1', '未知标签2', '未知标签3'], ['未知关键词1', '未知关键词2', '未知关键词3', '未知关键词4', '未知关键词5']
 
 def generate_summary(text, max_length=300):
     try:
@@ -254,20 +268,29 @@ def get_website_thumbnail(url):
 
 @app.route('/get_title', methods=['GET'])
 def get_title():
-    url = request.args.get('url')
+    url = request.args.get('url', '')
     if not url:
-        return jsonify({'error': 'No URL provided'}), 400
+        return jsonify({"error": "未提供URL"}), 400
 
     try:
-        # 发送请求获取网页内容
+        # 配置请求参数，增加超时和禁用代理
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
+        proxies = {
+            'http': None,   # 禁用HTTP代理
+            'https': None   # 禁用HTTPS代理
+        }
+        
+        # 增加超时设置
+        response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
+        response.raise_for_status()  # 检查请求是否成功
+        
+        # 使用更健壮的编码检测
+        response.encoding = response.apparent_encoding
 
-        # 使用 BeautifulSoup 解析标题和内容
         soup = BeautifulSoup(response.text, 'html.parser')
+        
         title = soup.title.string if soup.title else None
         
         # 尝试获取页面摘要或主要内容
@@ -276,6 +299,13 @@ def get_title():
             content = soup.find('meta', attrs={'name': 'description'})['content']
         elif soup.find('p'):
             content = soup.find('p').get_text()[:500]  # 取前500字符
+
+        # 如果标题或内容为空，返回错误
+        if not title and not content:
+            return jsonify({
+                "error": "无法获取网页内容",
+                "url": url
+            }), 404
 
         # 生成标签和关键词
         tags, keywords = generate_tags_and_keywords(title + ' ' + content)
@@ -287,7 +317,7 @@ def get_title():
         thumbnail = get_website_thumbnail(url)
 
         return jsonify({
-            "title": title,
+            "title": title or "未知标题",
             "url": url,
             "tags": tags,
             "keywords": keywords,
@@ -298,7 +328,13 @@ def get_title():
     except requests.RequestException as e:
         logging.error("获取网页内容时出错: %s", e)
         return jsonify({
-            "error": str(e),
+            "error": f"网络请求错误: {str(e)}",
+            "url": url
+        }), 500
+    except Exception as e:
+        logging.error("处理网页时发生未知错误: %s", e)
+        return jsonify({
+            "error": f"处理错误: {str(e)}",
             "url": url
         }), 500
 
